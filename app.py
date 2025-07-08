@@ -215,6 +215,13 @@ with st.sidebar.expander("Settings", expanded=False):
         import_data()
 
 
+pixels = np.array([
+    [[255, 0, 255],   [0, 255, 255]],  
+    [[0, 0, 255],   [255, 255, 0]] 
+])
+
+st.sidebar.image(pixels, width=300, channels="RGB", output_format="PNG")
+
 selected_indices = compute_selected_filter_indices(selected, "mult_", display_to_index, st.session_state) if selected else []
 
 is_combined = len(selected_indices) > 1 if selected_indices else False
