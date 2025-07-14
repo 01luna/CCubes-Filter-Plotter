@@ -42,6 +42,7 @@ from utils.filter_math import (
 from utils.metrics import (
     compute_effective_stops,
     compute_white_balance_gains,
+    compute_reflector_color,
     calculate_transmission_deviation_metrics,
 )
 
@@ -109,7 +110,7 @@ st.sidebar.header("Filter Plotter")
 # Load illuminant and QE data early
 illuminants, metadata = load_illuminants()
 camera_keys, qe_data, default_key = load_qe_data()
-
+ref_meta,ref_matrix= load_reflectors()
 # --- Filter Selection and Multiplier (TOP) ---
 selected = ui_sidebar_filter_selection()
 filter_multipliers = ui_sidebar_filter_multipliers(selected)
@@ -214,16 +215,6 @@ with st.sidebar.expander("Settings", expanded=False):
         st.markdown("---")
         import_data()
 
-
-pixels = np.array([
-    [compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)
-    ,compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)],
-    [compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)
-    ,compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)]
-    ])
-
-st.sidebar.image(pixels, width=300, channels="RGB", output_format="PNG")
-
 selected_indices = compute_selected_filter_indices(selected, "mult_", display_to_index, st.session_state) if selected else []
 
 is_combined = len(selected_indices) > 1 if selected_indices else False
@@ -313,6 +304,18 @@ if current_qe:
     )
 
     st.plotly_chart(fig_response, use_container_width=True)
+# --- Reflector Color Preview ---
+    
+
+    pixels = np.array([
+        [compute_reflector_color(ref_matrix[0],trans_interp,current_qe,selected_illum)
+         ,compute_reflector_color(ref_matrix[1],trans_interp,current_qe,selected_illum)],
+        [compute_reflector_color(ref_matrix[2],trans_interp,current_qe,selected_illum)
+         ,compute_reflector_color(ref_matrix[3],trans_interp,current_qe,selected_illum)]
+        ])
+    st.sidebar.subheader("vegetation Color Preview")
+
+    st.sidebar.image(pixels/np.max(pixels), width=300, channels="RGB", output_format="PNG")
 
 
 # Make sure trans_interp is defined or fallback to ones if no filters selected

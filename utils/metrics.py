@@ -44,10 +44,6 @@ def compute_reflector_color(
     current_qe: dict[str, np.ndarray],
     illum_curve: np.ndarray
 ) -> dict[str, float]:
-    """
-    Compute white balance gains normalized to green channel from transmission, QE, and illuminant.
-    Returns a dict with gains such that green gain is exactly 1.0.
-    """
     wb=compute_white_balance_gains(trans_interp, current_qe, illum_curve)
     rgb_resp = {}
     for ch in ['R', 'G', 'B']:
@@ -61,7 +57,7 @@ def compute_reflector_color(
             continue
         rgb_resp[ch] = np.nansum(ref_interp[valid]*trans_interp[valid] * (qe_curve[valid] / 100) * illum_curve[valid])
 
-    return {ch: rgb_resp[ch] / wb[ch] for ch in ['R', 'G', 'B']}
+    return [rgb_resp[ch] / wb[ch] for ch in ['R', 'G', 'B']]
     
 
 

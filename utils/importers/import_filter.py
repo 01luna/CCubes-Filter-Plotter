@@ -12,10 +12,12 @@ def safe_float(val):
         return np.nan
 
 def import_filter_from_csv(uploaded_file, meta, extrap_lower, extrap_upper):
-    try:
+    try:   
         raw_data = pd.read_csv(uploaded_file, sep=';', header=None, engine='python')
         if raw_data.shape[1] < 2:
-            return False, "Could not read two columns from the CSV."
+            raw_data = pd.read_csv(uploaded_file, sep=',', header=None, engine='python')
+        if raw_data.shape[1] < 2:
+               return False, "Could not read two columns from the CSV."
 
         raw_data = raw_data.applymap(safe_float)
         wavelengths = raw_data.iloc[:, 0].dropna().values

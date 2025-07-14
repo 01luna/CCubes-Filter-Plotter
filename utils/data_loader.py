@@ -216,13 +216,9 @@ def load_reflectors():
 
             wl_cols = sorted([float(c) for c in df.columns if _is_float(c)])
             str_wl_cols = [str(int(w)) for w in wl_cols]
-            if not wl_cols or 'Filter Number' not in df.columns:
-                continue
-
             for _, row in df.iterrows():
-                fn = str(row['Filter Number'])
 
-                name_raw = row.get('Filter Name')
+                name_raw = row.get('Spectrum Name')
                 name = str(name_raw).strip() if pd.notnull(name_raw) and str(name_raw).strip() else "Unnamed"
                 
                 raw = np.array([row.get(w, np.nan) for w in str_wl_cols], dtype=float)
@@ -241,9 +237,9 @@ def load_reflectors():
             st.warning(f"⚠️ Failed to load filter file '{os.path.basename(path)}': {e}")
 
     if not matrix:
-        result = (pd.DataFrame(), np.empty((0, len(INTERP_GRID))), np.empty((0, len(INTERP_GRID)), dtype=bool))
+        result = (pd.DataFrame(), np.empty((0, len(INTERP_GRID))))
     else:
-        result = (pd.DataFrame(meta_list), np.vstack(matrix), np.vstack(masks))
+        result = (pd.DataFrame(meta_list), np.vstack(matrix))
 
     _save_cache(result, "reflectors_data.pkl")
     _save_cache(version_hash, "reflectors_data_version.pkl")
