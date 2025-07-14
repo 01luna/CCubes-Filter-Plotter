@@ -192,3 +192,60 @@ def load_illuminants():
     _save_cache(result, "illuminants.pkl")
     _save_cache(version_hash, "illuminants_version.pkl")
     return result
+
+#--- REFLECTANCE/ABSORBANCE --- 
+def load_reflectors():
+    folder = os.path.join('data', 'reflectance_absorption')
+    os.makedirs(folder, exist_ok=True)
+    version_hash = _get_data_files_hash(folder, pattern="**/*.tsv")
+    
+    cached = _load_cache("reflectors.pkl")
+    cached_version = _load_cache("reflectors_version.pkl")
+
+    if cached is not None and cached_version == version_hash:
+        return cached
+
+    # Rebuild cache
+    files = glob.glob(os.path.join(folder, "**", "*.tsv"), recursive=True)
+    meta_list, matrix, masks = [], [], []
+
+    for path in files:
+        try:
+            df = pd.read_csv(path, sep="\t")
+            df.columns = [str(c).strip() for c in df.columns]
+
+            wl_cols = sorted([float(c) for c in df.columns if _is_float(c)])
+            str_wl_cols = [str(int(w)) for w in wl_cols]
+            if not wl_cols or 'Filter Number' not in df.columns:
+                continue
+
+            for _, row in df.iterrows():
+                fn = str(row['Filter Number'])
+
+                name_raw = row.get('Filter Name')
+                name = str(name_raw).strip() if pd.notnull(name_raw) and str(name_raw).strip() else "Unnamed"
+                
+                raw = np.array([row.get(w, np.nan) for w in str_wl_cols], dtype=float)
+                
+
+                interp_vals = np.interp(INTERP_GRID, wl_cols, raw, left=np.nan, right=np.nan)
+                extrap_mask = np.zeros_like(INTERP_GRID, dtype=bool)
+
+                meta_list.append({
+                    'Reflector Name': name,
+                })
+                matrix.append(interp_vals)
+                masks.append(extrap_mask)
+
+        except Exception as e:
+            st.warning(f"⚠️ Failed to load filter file '{os.path.basename(path)}': {e}")
+
+    if not matrix:
+        result = (pd.DataFrame(), np.empty((0, len(INTERP_GRID))), np.empty((0, len(INTERP_GRID)), dtype=bool))
+    else:
+        result = (pd.DataFrame(meta_list), np.vstack(matrix), np.vstack(masks))
+
+    _save_cache(result, "reflectors_data.pkl")
+    _save_cache(version_hash, "reflectors_data_version.pkl")
+    return result
+

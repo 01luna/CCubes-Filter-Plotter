@@ -38,6 +38,33 @@ def compute_effective_stops(trans, sensor_qe):
     return avg_trans, effective_stops
 
 
+def compute_reflector_color(
+    ref_interp: np.ndarray,
+    trans_interp: np.ndarray,
+    current_qe: dict[str, np.ndarray],
+    illum_curve: np.ndarray
+) -> dict[str, float]:
+    """
+    Compute white balance gains normalized to green channel from transmission, QE, and illuminant.
+    Returns a dict with gains such that green gain is exactly 1.0.
+    """
+    wb=compute_white_balance_gains(trans_interp, current_qe, illum_curve)
+    rgb_resp = {}
+    for ch in ['R', 'G', 'B']:
+        qe_curve = current_qe.get(ch)
+        if qe_curve is None:
+            rgb_resp[ch] = np.nan
+            continue
+        valid = ~np.isnan(trans_interp) & ~np.isnan(qe_curve) & ~np.isnan(illum_curve) & ~np.isnan(ref_interp)
+        if not valid.any():
+            rgb_resp[ch] = np.nan
+            continue
+        rgb_resp[ch] = np.nansum(ref_interp[valid]*trans_interp[valid] * (qe_curve[valid] / 100) * illum_curve[valid])
+
+    return {ch: rgb_resp[ch] / wb[ch] for ch in ['R', 'G', 'B']}
+    
+
+
 def compute_white_balance_gains(
     trans_interp: np.ndarray,
     current_qe: dict[str, np.ndarray],
@@ -66,7 +93,6 @@ def compute_white_balance_gains(
     
     st.warning("⚠️ Green channel too low — default white balance.")
     return {'R': 1.0, 'G': 1.0, 'B': 1.0}
-
 
 
 def calculate_transmission_deviation_metrics(

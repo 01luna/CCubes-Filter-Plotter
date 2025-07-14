@@ -28,7 +28,7 @@ from utils import advanced_search
 from utils.exports import generate_report_png
 
 #All data loaders: import /utils/data_loader.py
-from utils.data_loader import load_filter_data, load_qe_data, load_illuminants
+from utils.data_loader import load_filter_data, load_qe_data, load_illuminants,load_reflectors
 
 #Filter maths: import /utils/filter_math.py
 from utils.filter_math import (
@@ -216,9 +216,11 @@ with st.sidebar.expander("Settings", expanded=False):
 
 
 pixels = np.array([
-    [[255, 0, 255],   [0, 255, 255]],  
-    [[0, 0, 255],   [255, 255, 0]] 
-])
+    [compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)
+    ,compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)],
+    [compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)
+    ,compute_reflector_color(ref_inerp,trans_interp,current_qe,selected_illum)]
+    ])
 
 st.sidebar.image(pixels, width=300, channels="RGB", output_format="PNG")
 
