@@ -1,9 +1,13 @@
 import pandas as pd
 import numpy as np
 import copy
+import os 
+import glob
+import hashlib
+import pickle
 
 from .constants import INTERP_GRID
-
+from warnings import warn
 colmap={
         "wavelength (nm)":"wl",
         "wavelength":"wl",
@@ -18,11 +22,15 @@ colmap={
         "filter number":"fn",
         }   
 
+
+
 class spct:
-    dat=[]
-    interp=True
-    wl=INTERP_GRID
     def __init__(self,tsv_path=None, **kwargs):
+        self.dat=[]
+        self.interp= True
+        self.integrated=False
+        self.wl=INTERP_GRID
+
         if tsv_path:
             df = pd.read_csv(tsv_path, sep="\t")
             for col in df.columns:
@@ -43,17 +51,16 @@ class spct:
                 case 'i'| 'f'| 'u':
                     if name!='wl' and name !='fn' and name not in self.dat:
                         self.dat.append(name)
-                case 'S'| 'U':
+                case 'S'| 'U'| 'O':
                     value = value[0]
         super().__setattr__(name, value)
 
 
     def interpolate(self, wl=INTERP_GRID):
         for attr in self.dat:
-
             setattr(self, attr, np.interp(wl, self.wl, getattr(self, attr),left=np.nan, right=np.nan))
         self.wl = wl
-    
+
     def __mul__(self,other):
         obj= copy.deepcopy(self)
         if isinstance(other, spct):
@@ -61,4 +68,57 @@ class spct:
         for attr in self.dat:
             setattr(obj, attr, getattr(self, attr) * other)
         return obj
+    
+    
+    def integrate(self):
+        for attr in self.dat:
+            setattr(self, attr, np.trapz(getattr(self, attr), self.wl))
+        delattr(self,'wl')
+        self.integrated = True
+            
 
+
+class spcts:
+    def __init__(self,tsv_dir=None,spectra=None):
+        #allow passing a list of spectra
+        if spectra is not None:
+            self.spectra = spectra
+            return
+
+        f= glob.glob(os.path.join('data',tsv_dir, "**/*.tsv"),recursive=True)
+        # generate hash        
+        info='|'.join([f"{i}-{os.path.getmtime(i)}" for i in f])
+        self.hash = hashlib.md5(info.encode()).hexdigest()
+        # load cached if exists
+        cache_path = os.path.join('cache', tsv_dir+'.pkl')
+        if os.path.exists(cache_path):
+            cached=pickle.load(open(cache_path, 'rb'))
+            #use cached if hash matches
+            if cached.hash == self.hash:
+                print("Using cached spectra from", cache_path)
+                self=cached
+                return
+        else:
+            os.makedirs('cache', exist_ok=True)
+        # otherwise load from tsv and update cache
+        self.spectra=[spct(f) for f in glob.glob(os.path.join('data',tsv_dir, "**/*.tsv"),recursive=True)]
+        pickle.dump(self, open(cache_path, 'wb+'))
+
+    def __getattr__(self,key):
+        if key.endswith('s'):
+           return [getattr(i,key.removesuffix('s')) for i in self.spectra]
+        return super().__getattribute__(key)
+    def __getitem__(self, name):
+        if isinstance(name, int):
+            return self.spectra[name]
+        elif name in self.names:
+            r= [s for s in self.spectra if s.name == name]
+            if len(r)>1: warn("Multiple spectra found with name {name}. Returning first one.")
+            return r[0]
+    def __iter__(self):
+        return iter(self.spectra)
+    def sort(self,s):
+        self.spectra.sort(key=lambda x: getattr(x, s))
+    def sorted(self, s):
+        return spcts(spectra=sorted(self.spectra, key=lambda x: getattr(x, s)))
+     
