@@ -23,12 +23,12 @@ from matplotlib.patches import Rectangle
 from collections import Counter
 import warnings
 
+from utils.classes import *
 #import /utils/advanced_search.py and exports.py
 from utils import advanced_search
 from utils.exports import generate_report_png
 
 #All data loaders: import /utils/data_loader.py
-from utils.data_loader import load_filter_data, load_qe_data, load_illuminants,load_reflectors
 
 #Filter maths: import /utils/filter_math.py
 from utils.filter_math import (
@@ -52,6 +52,7 @@ from utils.plotting.plotly_utils import (
     create_sensor_response_plot,
     add_filter_curve_to_plotly
 )
+from utils.plotly_utils import  plot_filters
 from utils.plotting.mpl_utils import add_filter_curve_to_matplotlib
 
 #UI components: import /utils/ui_components.py
@@ -89,18 +90,26 @@ def convert_rgb_to_hex_color(row):
 
 
 #initialization
-#Load filter metadata + spectra
-df, filter_matrix, extrapolated_masks = load_filter_data()
-if df.empty:
+#Load spectra
+filters=spcts('filters')
+illuminants=spcts('illuminants')
+QEs=spcts('QE_data')
+reflectors=spcts('reflectors')
+
+if filters.spectra==[]:
     st.error("No filter data found. Please add .tsv files to data/filters_data")
     st.stop()
 
+
 #Build a human-readable list (and mapping) for the sidebar
+filter_display = filters.names
+'''
 filter_display = [
-    f"{row['Filter Name']} ({row['Filter Number']}, {row['Manufacturer']})"
-    for _, row in df.iterrows()
+    f"{i.name} ({i.fn}, {i.brand})"
+    for i in filters.spectra
 ]
-display_to_index = {name: idx for idx, name in enumerate(filter_display)}
+'''
+#display_to_index = {name: idx for idx, name in enumerate(filter_display)}
 
 
 # ----Inline Code starts here
@@ -108,20 +117,26 @@ display_to_index = {name: idx for idx, name in enumerate(filter_display)}
 st.sidebar.header("Filter Plotter")
 
 # Load illuminant and QE data early
-illuminants, metadata = load_illuminants()
-camera_keys, qe_data, default_key = load_qe_data()
-ref_meta,ref_matrix= load_reflectors()
 # --- Filter Selection and Multiplier (TOP) ---
-selected = ui_sidebar_filter_selection()
-filter_multipliers = ui_sidebar_filter_multipliers(selected)
 
+selection = ui_sidebar_filter_selection()
+print('selection', selection)
+
+filter_multipliers = ui_sidebar_filter_multipliers(selection)
+selected=filters[selection]
+print('selected', selected)
+if selected !=[]:
+    fig=plot_filters(selected)
+    st.plotly_chart(fig, use_container_width=True)
 # --- QE + Illuminant + Target Profile (Extras Combined) ---
+'''
 selected_illum_name, selected_illum, current_qe, selected_camera, target_profile = ui_sidebar_extras(
-    illuminants, metadata,
-    camera_keys, qe_data, default_key,
-    filter_display, df, filter_matrix, display_to_index
+    illuminants, QEs,filters,
+    filter_display 
 )
+'''
 
+'''
 # --- QE × Transmission Sensor Weighting ---
 if current_qe:
     qe_curves = np.array([curve for _, curve in current_qe.items()])
@@ -134,8 +149,8 @@ else:
     sensor_qe = np.ones_like(INTERP_GRID)
 
 illum_curve = st.session_state.get("illum_curve_data")
-
-
+'''
+'''
 # — Report Generation —
 if st.sidebar.button("📄 Generate Report (PNG)"):
     # Compute selected indices once here
@@ -177,7 +192,7 @@ if last_export.get("bytes"):
         mime="image/png",
         use_container_width=True
     )
-
+'''
 with st.sidebar.expander("Settings", expanded=False):
     # Log view toggle
     log_stops = st.checkbox("Display Filters in Stop View", value=False)
@@ -220,9 +235,9 @@ selected_indices = compute_selected_filter_indices(selected, "mult_", display_to
 is_combined = len(selected_indices) > 1 if selected_indices else False
 
 trans, label, combined = None, None, None
-if selected_indices:
+'''if selected_indices:
     trans, label, combined = compute_filter_transmission(selected_indices, filter_matrix, df)
-
+'''
 # --- Title ---
 st.markdown("""
 <div style='display: flex; justify-content: space-between; align-items: center;'>
@@ -230,7 +245,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
+'''
 # --- Filter Plotter (refactored) ---
 if selected_indices:
     # Calculate combined transmission & label
@@ -263,7 +278,8 @@ if selected_indices:
         log_stops=log_stops,
     )
     st.plotly_chart(fig, use_container_width=True)
-
+'''
+'''
     # Deviation from target
     trans_for_dev = combined if is_combined and combined is not None else trans
     metrics = calculate_transmission_deviation_metrics(trans_for_dev, target_profile, log_stops)
@@ -277,8 +293,8 @@ if selected_indices:
         )
     else:
         st.info("ℹ️ No valid overlap with target for deviation calculation.")
-
-
+'''
+'''
 # Sensor-weighted QE
 # --- Main Plot Block ---
 if current_qe:
@@ -304,8 +320,9 @@ if current_qe:
     )
 
     st.plotly_chart(fig_response, use_container_width=True)
+'''
 # --- Reflector Color Preview ---
-    
+''' 
 
     pixels = np.array([
         [compute_reflector_color(ref_matrix[0],trans_interp,current_qe,selected_illum)
@@ -316,8 +333,9 @@ if current_qe:
     st.sidebar.subheader("vegetation Color Preview")
 
     st.sidebar.image(pixels/np.max(pixels), width=300, channels="RGB", output_format="PNG")
+'''
 
-
+'''
 # Make sure trans_interp is defined or fallback to ones if no filters selected
 if selected and selected_indices:
     trans_interp = compute_active_transmission(selected, selected_indices, filter_matrix)
@@ -327,15 +345,12 @@ else:
 
 if current_qe and selected_illum is not None:
     wb_gains = compute_white_balance_gains(
-        trans_interp=trans_interp,
-        current_qe=current_qe,
-        illum_curve=selected_illum
-    )
 else:
     wb_gains = {'R': 1.0, 'G': 1.0, 'B': 1.0}
-
+'''
 # — Compute & Display RGB White Balance —
 # — Compute & Display RGB White Balance —
+'''
 if selected and current_qe and selected_illum is not None:
     wb_gains = compute_white_balance_gains(
         trans_interp=trans_interp,
@@ -358,10 +373,11 @@ if selected and current_qe and selected_illum is not None:
     )
 else:
     st.info("ℹ️ Select filters and a QE & illuminant profile to compute white balance.")
-
+'''
 
 
 # — Optional Viewer: Raw QE and Illuminant Curves —
+'''
 display_raw_qe_and_illuminant(
     interp_grid=INTERP_GRID,
     current_qe=current_qe,
@@ -370,3 +386,4 @@ display_raw_qe_and_illuminant(
     metadata=metadata,
     add_trace_fn=add_filter_curve_to_plotly
 )
+'''

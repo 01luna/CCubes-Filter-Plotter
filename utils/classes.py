@@ -6,6 +6,7 @@ import glob
 import hashlib
 import pickle
 
+from .helpers import rgb2hex
 from .constants import INTERP_GRID
 from warnings import warn
 colmap={
@@ -20,15 +21,17 @@ colmap={
         "hex_color":"color",
         "power":"power",
         "filter number":"fn",
+        "extrapolated":"mask",
         }   
 
 
 
 class spct:
+    QE=None
     def __init__(self,tsv_path=None, **kwargs):
         self.dat=[]
         self.interp= True
-        self.integrated=False
+        self.isintegrated=False
         self.wl=INTERP_GRID
 
         if tsv_path:
@@ -56,6 +59,11 @@ class spct:
         super().__setattr__(name, value)
 
 
+    def __getattr__(self,key):
+        if key=='RGB' and hasattr(self,'R') and hasattr(self,'G') and hasattr(self,'B'):
+            return np.array([self.R, self.G, self.B]).transpose()
+        return super().__getattribute__(key) 
+
     def interpolate(self, wl=INTERP_GRID):
         for attr in self.dat:
             setattr(self, attr, np.interp(wl, self.wl, getattr(self, attr),left=np.nan, right=np.nan))
@@ -67,15 +75,26 @@ class spct:
             other = getattr(other, other.dat[0])
         for attr in self.dat:
             setattr(obj, attr, getattr(self, attr) * other)
+        obj.color=obj.ccolor()
         return obj
     
     
     def integrate(self):
+        if self.isIntegrated return
         for attr in self.dat:
-            setattr(self, attr, np.trapz(getattr(self, attr), self.wl))
+            valid = ~np.isnan(getattr(self, attr))
+            setattr(self, attr, np.trapz(getattr(self, attr)[valid], self.wl[valid]))
         delattr(self,'wl')
-        self.integrated = True
-            
+        self.isintegrated = True
+    def integrated(self):
+        new= copy.deepcopy(self)
+        new.integrate()
+        return new
+    #calculated color
+    def getcolor(self,arr=false):
+        if hasattr(self,'RGB'):
+            return  rgb2hex(self.integrated().RGB)
+        return rgb2hex((self.QE*self).integrated().RGB / (self.QE.integrated().RGB))
 
 
 class spcts:
@@ -96,7 +115,7 @@ class spcts:
             #use cached if hash matches
             if cached.hash == self.hash:
                 print("Using cached spectra from", cache_path)
-                self=cached
+                self.spectra=cached.spectra
                 return
         else:
             os.makedirs('cache', exist_ok=True)
@@ -108,17 +127,27 @@ class spcts:
         if key.endswith('s'):
            return [getattr(i,key.removesuffix('s')) for i in self.spectra]
         return super().__getattribute__(key)
-    def __getitem__(self, name):
-        if isinstance(name, int):
-            return self.spectra[name]
-        elif name in self.names:
-            r= [s for s in self.spectra if s.name == name]
-            if len(r)>1: warn("Multiple spectra found with name {name}. Returning first one.")
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.spectra[key]
+        if key in self.names:
+            r= [s for s in self.spectra if s.name == key]
+            if len(r)>1: warn(f"Multiple spectra found with name {key}. Returning first one.")
             return r[0]
+        if len(key)>1: 
+            return [self[k] for k in key]
+        raise KeyError(f"{key} not found in spectra")
+
     def __iter__(self):
         return iter(self.spectra)
     def sort(self,s):
         self.spectra.sort(key=lambda x: getattr(x, s))
     def sorted(self, s):
         return spcts(spectra=sorted(self.spectra, key=lambda x: getattr(x, s)))
-     
+
+
+filters=spcts('filters')
+illuminants=spcts('illuminants')
+QEs=spcts('QEs')
+reflectors=spcts('reflectors')
+spcts.QE=QEs['Eye']

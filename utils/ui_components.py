@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 from plotly import graph_objs as go
+from utils.classes import *
 
 from utils.constants import INTERP_GRID
 from utils.plotting.plotly_utils import add_filter_curve_to_plotly
@@ -8,20 +9,20 @@ from utils.plotting.plotly_utils import QE_COLORS  # if needed
 
 from utils import advanced_search
 
-from utils.data_loader import load_filter_data
 
 # Load data inside this module:
-df, filter_matrix, extrapolated_masks = load_filter_data()
+filters = spcts('filters')
 
-if df.empty:
+if filters.spectra == []:
     import streamlit as st
     st.error("No filter data found. Please add .tsv files to data/filters_data")
     st.stop()
 
-filter_display = [
-    f"{row['Filter Name']} ({row['Filter Number']}, {row['Manufacturer']})"
-    for _, row in df.iterrows()
-]
+filter_display=filters.names
+#filter_display = [
+#    f"{filter.name} ({filter.fn}, {filter.brand})"
+#    for filter in filters
+#]
 
 display_to_index = {name: idx for idx, name in enumerate(filter_display)}
 
@@ -70,9 +71,7 @@ def ui_sidebar_filter_multipliers(selected):
     return filter_multipliers
 
 def ui_sidebar_extras(
-    illuminants, metadata,
-    camera_keys, qe_data, default_key,
-    filter_display, df, filter_matrix, display_to_index
+    illuminants,QEs,filters,filter_display
 ):
     with st.sidebar.expander("Extras", expanded=False):
 
